@@ -15,17 +15,24 @@ library(lubridate)
 library(parallel)
 library(tseries)
 
-CAMINHO      <- "./data/"
-JANELA       <- 52L * 3L        # 156 semanas de treino
-T_START      <- JANELA + 2L
-USE_PARALLEL <- TRUE
-N_CORES      <- max(1L, parallel::detectCores() - 1L)
+CAMINHO         <- "./data/"
+JANELA          <- 52L * 3L                          # 156 semanas de treino
+T_START         <- JANELA + 2L
+USE_PARALLEL    <- TRUE
+N_CORES         <- max(1L, parallel::detectCores() - 2L)
+TIMEOUT_TICKER  <- 30L * 60L                         # 30 min/ticker em segundos
+DIR_CHECKPOINT  <- paste0(CAMINHO, "checkpoints/")   # 1 .rds por ticker
+FORCE_RECOMPUTE <- FALSE                             # se TRUE, ignora checkpoints
 set.seed(42)
+
+dir.create(DIR_CHECKPOINT, showWarnings = FALSE, recursive = TRUE)
 
 cat("=== 02_modelos.R ===\n")
 cat(sprintf("Janela de treino : %d semanas\n", JANELA))
 cat(sprintf("Primeira prev.   : indice t = %d\n", T_START))
 cat(sprintf("Nucleos usados   : %d\n", if (USE_PARALLEL) N_CORES else 1L))
+cat(sprintf("Timeout/ticker   : %d min\n", TIMEOUT_TICKER %/% 60L))
+cat(sprintf("Checkpoints      : %s\n", DIR_CHECKPOINT))
 
 # ── 1. Carrega dados ──────────────────────────────────────────────────────────
 df_final <- read_csv(
@@ -33,6 +40,10 @@ df_final <- read_csv(
   col_types = cols(semana = col_date(format = "%Y-%m-%d")),
   show_col_types = FALSE
 )
+
+# Filtra apenas os tickers de interesse
+# TICKERS_SELECIONADOS <- c("PETR4", "GFSA3", "CPLE3", "CVCB3", "BEES3", "TECN3", "PATI4")  # <- edite conforme necessário
+# df_final <- df_final |> filter(ticker_b3 %in% TICKERS_SELECIONADOS)
 
 cat(sprintf("\nbase_final_tcc   : %d linhas, %d tickers\n",
             nrow(df_final), n_distinct(df_final$ticker_b3)))
@@ -106,7 +117,7 @@ calc_m0 <- function(df_t, idx) {
 # Retornos escalados por 100 para estabilidade numerica; previsao reescalada
 calc_m1 <- function(df_t, idx, janela = JANELA) {
   spec <- ugarchspec(
-    variance.model     = list(model = "sGARCH", garchOrder = c(1L, 1L)),
+    variance.model     = list(model = "eGARCH", garchOrder = c(1L, 1L)),
     mean.model         = list(armaOrder = c(0L, 0L), include.mean = TRUE),
     distribution.model = "norm"
   )
@@ -183,7 +194,7 @@ calc_m2 <- function(df_t, idx, janela = JANELA) {
     fit_res <- tryCatch(
       withCallingHandlers({
         spec <- ugarchspec(
-          variance.model     = list(model = "sGARCH", garchOrder = c(1L, 1L),
+          variance.model     = list(model = "eGARCH", garchOrder = c(1L, 1L),
                                     external.regressors = train_x),
           mean.model         = list(armaOrder = c(0L, 0L), include.mean = TRUE),
           distribution.model = "norm"
@@ -264,60 +275,93 @@ if (length(tickers_elegiveis) == 0L) stop("Nenhum ticker passou no pre-voo.")
 # ── 4. Loop principal por ticker ──────────────────────────────────────────────
 
 processar_ticker <- function(i) {
-  ticker <- tickers_elegiveis[i]
+  ticker      <- tickers_elegiveis[i]
+  arquivo_ckp <- file.path(DIR_CHECKPOINT, paste0(ticker, ".rds"))
 
-  grupo <- df_final %>%
-    filter(ticker_b3 == ticker, !is.na(svi_log_dev)) %>%
-    arrange(semana)
+  # Reaproveita resultado salvo (retomada incremental)
+  if (!FORCE_RECOMPUTE && file.exists(arquivo_ckp)) {
+    return(readRDS(arquivo_ckp))
+  }
 
-  df_m0 <- calc_m0(grupo, idx_global)
-  df_m1 <- calc_m1(grupo, idx_global)
-  df_m2 <- calc_m2(grupo, idx_global)
+  t_inicio <- Sys.time()
+  setTimeLimit(elapsed = TIMEOUT_TICKER, transient = TRUE)
 
-  stopifnot(identical(df_m1$semana, df_m2$semana))
+  resultado <- tryCatch({
+    grupo <- df_final %>%
+      filter(ticker_b3 == ticker, !is.na(svi_log_dev)) %>%
+      arrange(semana)
 
-  # Consolida previsoes em um unico data.frame
-  df_tick <- df_m1 %>%
-    mutate(rv_pred_m0 = df_m0$rv_pred_m0) %>%
-    left_join(
-      df_m2 %>% select(semana, rv_pred_m2, alpha_m2, beta_m2,
-                        gamma, gamma_pval, status_m2),
-      by = "semana"
-    ) %>%
-    mutate(ticker_b3 = ticker)
+    df_m0 <- calc_m0(grupo, idx_global)
+    df_m1 <- calc_m1(grupo, idx_global)
+    df_m2 <- calc_m2(grupo, idx_global)
 
-  # Resumo dos parametros estimados por ticker
-  resumo <- tibble(
-    ticker_b3        = ticker,
-    n_previsoes      = nrow(df_m1),
-    gamma_medio      = mean(df_m2$gamma, na.rm = TRUE),
-    gamma_pval_medio = mean(df_m2$gamma_pval, na.rm = TRUE),
-    pct_signif_5pct  = mean(df_m2$gamma_pval < 0.05, na.rm = TRUE) * 100,
-    persistencia_m1  = mean(df_m1$alpha + df_m1$beta, na.rm = TRUE),
-    persistencia_m2  = mean(df_m2$alpha_m2 + df_m2$beta_m2, na.rm = TRUE)
-  )
+    stopifnot(identical(df_m1$semana, df_m2$semana))
 
-  # Diagnosticos dos residuos padronizados (ultimo fit de cada modelo)
-  diag_m1 <- diag_residuos(attr(df_m1, "ultimo_fit"), "m1")
-  diag_m2 <- diag_residuos(attr(df_m2, "ultimo_fit"), "m2")
+    df_tick <- df_m1 %>%
+      mutate(rv_pred_m0 = df_m0$rv_pred_m0) %>%
+      left_join(
+        df_m2 %>% select(semana, rv_pred_m2, alpha_m2, beta_m2,
+                          gamma, gamma_pval, status_m2),
+        by = "semana"
+      ) %>%
+      mutate(ticker_b3 = ticker)
 
-  diagnosticos <- bind_rows(diag_m1$resumo, diag_m2$resumo)
-  if (nrow(diagnosticos) > 0L)
-    diagnosticos <- mutate(diagnosticos, ticker_b3 = ticker, .before = 1L)
+    resumo <- tibble(
+      ticker_b3        = ticker,
+      n_previsoes      = nrow(df_m1),
+      gamma_medio      = mean(df_m2$gamma, na.rm = TRUE),
+      gamma_pval_medio = mean(df_m2$gamma_pval, na.rm = TRUE),
+      pct_signif_5pct  = mean(df_m2$gamma_pval < 0.05, na.rm = TRUE) * 100,
+      persistencia_m1  = mean(df_m1$alpha + df_m1$beta, na.rm = TRUE),
+      persistencia_m2  = mean(df_m2$alpha_m2 + df_m2$beta_m2, na.rm = TRUE)
+    )
 
-  # Residuos padronizados para Q-Q plots posteriores
-  z_lista <- list()
-  if (!is.null(diag_m1$z))
-    z_lista[["m1"]] <- tibble(modelo = "m1", i = seq_along(diag_m1$z), z = diag_m1$z)
-  if (!is.null(diag_m2$z))
-    z_lista[["m2"]] <- tibble(modelo = "m2", i = seq_along(diag_m2$z), z = diag_m2$z)
+    diag_m1 <- diag_residuos(attr(df_m1, "ultimo_fit"), "m1")
+    diag_m2 <- diag_residuos(attr(df_m2, "ultimo_fit"), "m2")
 
-  residuos_z <- bind_rows(z_lista)
-  if (nrow(residuos_z) > 0L)
-    residuos_z <- mutate(residuos_z, ticker_b3 = ticker, .before = 1L)
+    diagnosticos <- bind_rows(diag_m1$resumo, diag_m2$resumo)
+    if (nrow(diagnosticos) > 0L)
+      diagnosticos <- mutate(diagnosticos, ticker_b3 = ticker, .before = 1L)
 
-  list(previsoes = df_tick, resumo = resumo,
-       diagnosticos = diagnosticos, residuos_z = residuos_z)
+    z_lista <- list()
+    if (!is.null(diag_m1$z))
+      z_lista[["m1"]] <- tibble(modelo = "m1", i = seq_along(diag_m1$z), z = diag_m1$z)
+    if (!is.null(diag_m2$z))
+      z_lista[["m2"]] <- tibble(modelo = "m2", i = seq_along(diag_m2$z), z = diag_m2$z)
+
+    residuos_z <- bind_rows(z_lista)
+    if (nrow(residuos_z) > 0L)
+      residuos_z <- mutate(residuos_z, ticker_b3 = ticker, .before = 1L)
+
+    list(
+      ticker_b3    = ticker,
+      status       = "ok",
+      tempo_s      = as.numeric(difftime(Sys.time(), t_inicio, units = "secs")),
+      previsoes    = df_tick,
+      resumo       = resumo,
+      diagnosticos = diagnosticos,
+      residuos_z   = residuos_z
+    )
+  },
+  error = function(e) {
+    msg <- conditionMessage(e)
+    eh_timeout <- grepl("reached elapsed time limit|reached CPU time limit", msg)
+    list(
+      ticker_b3    = ticker,
+      status       = if (eh_timeout) "timeout" else paste0("erro: ", msg),
+      tempo_s      = as.numeric(difftime(Sys.time(), t_inicio, units = "secs")),
+      previsoes    = NULL,
+      resumo       = NULL,
+      diagnosticos = NULL,
+      residuos_z   = NULL
+    )
+  })
+
+  setTimeLimit()  # remove o limite antes de devolver controle ao master
+
+  # Grava checkpoint mesmo em falha, para nao reprocessar ate o usuario decidir
+  saveRDS(resultado, arquivo_ckp)
+  resultado
 }
 
 cat(sprintf("\nProcessando %d tickers elegiveis...\n", length(tickers_elegiveis)))
@@ -327,7 +371,8 @@ if (USE_PARALLEL && N_CORES > 1L) {
   parallel::clusterExport(cl, varlist = c(
     "df_final", "JANELA", "T_START", "idx_global",
     "tickers_elegiveis", "processar_ticker",
-    "calc_m0", "calc_m1", "calc_m2", "janela_ok", "diag_residuos"
+    "calc_m0", "calc_m1", "calc_m2", "janela_ok", "diag_residuos",
+    "DIR_CHECKPOINT", "TIMEOUT_TICKER", "FORCE_RECOMPUTE"
   ), envir = environment())
   parallel::clusterEvalQ(cl, {
     suppressPackageStartupMessages({
@@ -335,8 +380,10 @@ if (USE_PARALLEL && N_CORES > 1L) {
       library(rugarch); library(dplyr); library(tseries)
     })
   })
+  # chunk.size = 1L garante load balancing real: 1 ticker por vez, sem pre-bloco
   results_list <- tryCatch(
-    parallel::parLapply(cl, seq_along(tickers_elegiveis), processar_ticker),
+    parallel::parLapplyLB(cl, seq_along(tickers_elegiveis),
+                          processar_ticker, chunk.size = 1L),
     finally = parallel::stopCluster(cl)
   )
 } else {
@@ -345,13 +392,30 @@ if (USE_PARALLEL && N_CORES > 1L) {
 
 # ── 5. Consolidacao, validacao e exportacao ───────────────────────────────────
 
-results_ok       <- Filter(Negate(is.null), results_list)
-df_previsoes     <- bind_rows(lapply(results_ok, `[[`, "previsoes"))
-df_resumo_params <- bind_rows(lapply(results_ok, `[[`, "resumo"))
-df_diagnosticos  <- bind_rows(lapply(results_ok, `[[`, "diagnosticos"))
-df_residuos_z    <- bind_rows(lapply(results_ok, `[[`, "residuos_z"))
+results_ok  <- Filter(Negate(is.null), results_list)
+status_runs <- vapply(results_ok, `[[`, character(1L), "status")
+tempo_runs  <- vapply(results_ok, `[[`, numeric(1L),   "tempo_s")
+ticker_runs <- vapply(results_ok, `[[`, character(1L), "ticker_b3")
 
-# Valida painel balanceado
+falhas <- which(status_runs != "ok")
+if (length(falhas) > 0L) {
+  cat(sprintf("\n%d ticker(s) com falha/timeout (excluidos do painel):\n",
+              length(falhas)))
+  for (k in falhas)
+    cat(sprintf("  %-8s  %s  (%.1f s)\n",
+                ticker_runs[k], status_runs[k], tempo_runs[k]))
+}
+
+# Painel apenas com tickers que completaram com sucesso
+tem_previsoes    <- vapply(results_ok, function(x) !is.null(x$previsoes),
+                           logical(1L))
+results_panel    <- results_ok[tem_previsoes]
+df_previsoes     <- bind_rows(lapply(results_panel, `[[`, "previsoes"))
+df_resumo_params <- bind_rows(lapply(results_panel, `[[`, "resumo"))
+df_diagnosticos  <- bind_rows(lapply(results_panel, `[[`, "diagnosticos"))
+df_residuos_z    <- bind_rows(lapply(results_panel, `[[`, "residuos_z"))
+
+# Valida painel balanceado entre tickers sobreviventes
 n_por_ticker <- df_previsoes %>% count(ticker_b3)
 if (length(unique(n_por_ticker$n)) != 1L)
   stop("Painel desbalanceado: tickers com numero diferente de semanas.")

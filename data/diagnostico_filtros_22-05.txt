@@ -1,0 +1,148 @@
+Diagnostico - comparacao de cenarios
+Gerado em: 2026-05-22 16:33:50
+
+════════════════════════════════════════════════════════════
+  1. Considerando todos os ativo
+════════════════════════════════════════════════════════════
+  Tickers em df_previsoes              : 302
+  Com erro (M2)                        : 5
+  Na comparacao final                  : 302
+  Obs. OOS usadas / descartadas        : 29326 / 1780
+
+  QLIKE medio:
+    M0_RW          : 47.132798
+    M1_GARCH       : 0.832119
+    M2_GARCHX      : 0.853339
+    M3_GARCHX      : 0.837448
+
+  MCS (alpha=10%):
+                p_valor  no_conjunto
+    Model name                      
+    M1_GARCH      1.000         True
+    M3_GARCHX     0.139         True
+    M2_GARCHX     0.139         True
+    M0_RW         0.004        False
+
+  Conjunto de confianca : ['M1_GARCH', 'M2_GARCHX', 'M3_GARCHX']
+  Excluidos             : ['M0_RW']
+
+  gamma significativo em >=50% das janelas:
+    1/302 tickers
+
+  Top 5 por % de janelas significativas (gamma):
+ticker_b3
+PATI4    100.000000
+GFSA3     48.543689
+CPLE3     39.805825
+CVCB3     36.893204
+BEES3     35.922330
+
+════════════════════════════════════════════════════════════
+  1.b. Considerando todos os ativo, filtrando erro hessiana
+════════════════════════════════════════════════════════════
+  Tickers em df_previsoes              : 302
+  Com erro (M2)                        : 5
+  Na comparacao final                  : 297
+  Obs. OOS usadas / descartadas        : 28821 / 1770
+
+  QLIKE medio:
+    M0_RW          : 47.918426
+    M1_GARCH       : 0.834763
+    M2_GARCHX      : 0.855678
+    M3_GARCHX      : 0.840181
+
+  MCS (alpha=10%):
+                p_valor  no_conjunto
+    Model name                      
+    M1_GARCH      1.000         True
+    M3_GARCHX     0.150         True
+    M2_GARCHX     0.150         True
+    M0_RW         0.007        False
+
+  Conjunto de confianca : ['M1_GARCH', 'M2_GARCHX', 'M3_GARCHX']
+  Excluidos             : ['M0_RW']
+
+  gamma significativo em >=50% das janelas:
+    1/297 tickers
+
+  Top 5 por % de janelas significativas (gamma):
+ticker_b3
+PATI4    100.000000
+GFSA3     48.543689
+CPLE3     39.805825
+CVCB3     36.893204
+EPAR3     29.126214
+
+════════════════════════════════════════════════════════════
+  2. Filtro >=70%
+════════════════════════════════════════════════════════════
+  Tickers em df_previsoes              : 302
+  Com erro (M2)                        : 5
+  Apos filtro zeros >=70%              : 198  (4 com erro)
+  Na comparacao final                  : 198
+  Obs. OOS usadas / descartadas        : 20336 / 58
+
+  QLIKE medio:
+    M0_RW          : 1.804407
+    M1_GARCH       : 0.657577
+    M2_GARCHX      : 0.665458
+    M3_GARCHX      : 0.663748
+
+  MCS (alpha=10%):
+                p_valor  no_conjunto
+    Model name                      
+    M1_GARCH      1.000         True
+    M2_GARCHX     0.010        False
+    M3_GARCHX     0.007        False
+    M0_RW         0.000        False
+
+  Conjunto de confianca : ['M1_GARCH']
+  Excluidos             : ['M0_RW', 'M2_GARCHX', 'M3_GARCHX']
+
+  gamma significativo em >=50% das janelas:
+    0/198 tickers
+
+  Top 5 por % de janelas significativas (gamma):
+ticker_b3
+GFSA3    48.543689
+CPLE3    39.805825
+CVCB3    36.893204
+BEES3    35.922330
+TECN3    23.300971
+
+════════════════════════════════════════════════════════════
+  3. Filtro >=50%
+════════════════════════════════════════════════════════════
+  Tickers em df_previsoes              : 302
+  Com erro (M2)                        : 5
+  Apos filtro zeros >=50%              : 177  (4 com erro)
+  Na comparacao final                  : 177
+  Obs. OOS usadas / descartadas        : 18174 / 57
+
+  QLIKE medio:
+    M0_RW          : 1.805141
+    M1_GARCH       : 0.661026
+    M2_GARCHX      : 0.669377
+    M3_GARCHX      : 0.665663
+
+  MCS (alpha=10%):
+                p_valor  no_conjunto
+    Model name                      
+    M1_GARCH       1.00         True
+    M2_GARCHX      0.01        False
+    M3_GARCHX      0.01        False
+    M0_RW          0.00        False
+
+  Conjunto de confianca : ['M1_GARCH']
+  Excluidos             : ['M0_RW', 'M2_GARCHX', 'M3_GARCHX']
+
+  gamma significativo em >=50% das janelas:
+    0/177 tickers
+
+  Top 5 por % de janelas significativas (gamma):
+ticker_b3
+GFSA3    48.543689
+CPLE3    39.805825
+CVCB3    36.893204
+BEES3    35.922330
+TECN3    23.300971
