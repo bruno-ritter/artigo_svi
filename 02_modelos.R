@@ -359,7 +359,7 @@ processar_ticker <- function(i) {
 
   setTimeLimit()  # remove o limite antes de devolver controle ao master
 
-  # Grava checkpoint mesmo em falha, para nao reprocessar ate o usuario decidir
+  # Grava checkpoint mesmo em falha
   saveRDS(resultado, arquivo_ckp)
   resultado
 }

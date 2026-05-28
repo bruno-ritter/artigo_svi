@@ -1,4 +1,4 @@
 Model name,p_valor,no_conjunto
 M1_GARCH,1.0,True
-M2_GARCHX,0.081,False
-M0_RW,0.004,False
+M2_GARCHX,0.092,False
+M0_RW,0.039,False
