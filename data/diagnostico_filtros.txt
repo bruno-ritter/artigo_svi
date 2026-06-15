@@ -1,5 +1,5 @@
 Diagnostico - comparacao de cenarios
-Gerado em: 2026-05-27 15:57:58
+Gerado em: 2026-06-09 14:34:31
 
 ════════════════════════════════════════════════════════════
   1. Considerando todos os ativo

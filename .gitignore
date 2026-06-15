@@ -4,4 +4,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .env
+.venv
 checkpoints
+tcc_overleaf
