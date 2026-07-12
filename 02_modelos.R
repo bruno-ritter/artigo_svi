@@ -4,9 +4,9 @@
 # Modelos:
 #   M0  Random Walk (previsao = RV da semana anterior)
 #   M1  eGARCH(1,1)            (assimetrico, puro)
-#   M2  eGARCH-X(1,1)          (assimetrico + svi_log_dev)
+#   M2  eGARCH-X(1,1)          (assimetrico + svi_exp_dev)
 #   M3  GARCH(1,1)  / sGARCH   (simetrico,  puro)
-#   M4  GARCH-X(1,1)/ sGARCH-X (simetrico  + svi_log_dev)
+#   M4  GARCH-X(1,1)/ sGARCH-X (simetrico  + svi_exp_dev)
 # Objetivo da extensao (artigo): comparar o p-valor do coeficiente do SVI (delta)
 # no GARCH-X (M4) vs eGARCH-X (M2). A hipotese e que delta perde relevancia quando
 # o modelo captura a assimetria nativamente (efeito alavancagem, gamma1 do eGARCH),
@@ -68,8 +68,8 @@ janela_ok <- function(df_t, t, janela = JANELA) {
   w <- (t - janela):(t - 1L)
   w_svi_lag <- (t - janela - 1L):(t - 2L)
   all(!is.na(df_t$ret_semanal[w])) &&
-    all(!is.na(df_t$svi_log_dev[w_svi_lag])) &&
-    !is.na(df_t$svi_log_dev[t - 1L]) &&
+    all(!is.na(df_t$svi_exp_dev[w_svi_lag])) &&
+    !is.na(df_t$svi_exp_dev[t - 1L]) &&
     !is.na(df_t$rv[t - 1L])
 }
 
@@ -148,7 +148,7 @@ calc_m0 <- function(df_t, idx) {
 #   omega, alpha (alpha1), beta (beta1),
 #   leverage = gamma1 (so no eGARCH; NA no sGARCH),
 #   delta = vxreg1 = coeficiente do SVI (so quando use_svi = TRUE) e seu p-valor.
-# use_svi usa svi_log_dev defasado 1 semana: o retorno da semana s e explicado pelo
+# use_svi usa svi_exp_dev defasado 1 semana: o retorno da semana s e explicado pelo
 # SVI de s-1 (evita look-ahead), coerente entre M2 e M4.
 calc_garch <- function(df_t, idx, model = c("eGARCH", "sGARCH"),
                        use_svi = FALSE, janela = JANELA) {
@@ -161,8 +161,8 @@ calc_garch <- function(df_t, idx, model = c("eGARCH", "sGARCH"),
     train_ret <- df_t$ret_semanal[(t - janela):(t - 1L)] * 100
 
     if (use_svi) {
-      train_x <- matrix(df_t$svi_log_dev[(t - janela - 1L):(t - 2L)], ncol = 1L)
-      fc_x <- matrix(df_t$svi_log_dev[t - 1L], nrow = 1L, ncol = 1L)
+      train_x <- matrix(df_t$svi_exp_dev[(t - janela - 1L):(t - 2L)], ncol = 1L)
+      fc_x <- matrix(df_t$svi_exp_dev[t - 1L], nrow = 1L, ncol = 1L)
     } else {
       train_x <- NULL
       fc_x <- NULL
@@ -251,7 +251,7 @@ calc_garch <- function(df_t, idx, model = c("eGARCH", "sGARCH"),
 
 tickers_all <- sort(unique(df_final$ticker_b3))
 grupo_ref <- df_final %>%
-  filter(ticker_b3 == tickers_all[1L], !is.na(svi_log_dev)) %>%
+  filter(ticker_b3 == tickers_all[1L], !is.na(svi_exp_dev)) %>%
   arrange(semana)
 n_ref <- nrow(grupo_ref)
 
@@ -267,7 +267,7 @@ n_semanas_previsao <- length(idx_global)
 tickers_elegiveis <- character(0)
 for (tk in tickers_all) {
   g <- df_final %>%
-    filter(ticker_b3 == tk, !is.na(svi_log_dev)) %>%
+    filter(ticker_b3 == tk, !is.na(svi_exp_dev)) %>%
     arrange(semana)
   if (nrow(g) != n_ref || !identical(g$semana, grupo_ref$semana)) next
   if (all(vapply(idx_global, janela_ok, logical(1L), df_t = g))) {
@@ -304,7 +304,7 @@ processar_ticker <- function(i) {
   resultado <- tryCatch(
     {
       grupo <- df_final %>%
-        filter(ticker_b3 == ticker, !is.na(svi_log_dev)) %>%
+        filter(ticker_b3 == ticker, !is.na(svi_exp_dev)) %>%
         arrange(semana)
 
       df_m0 <- calc_m0(grupo, idx_global)
