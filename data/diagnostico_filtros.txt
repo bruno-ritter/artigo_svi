@@ -1,140 +1,170 @@
 Diagnostico - comparacao de cenarios
-Gerado em: 2026-06-09 14:34:31
+Gerado em: 2026-07-12 14:55:05
 
 ════════════════════════════════════════════════════════════
   1. Considerando todos os ativo
 ════════════════════════════════════════════════════════════
   Tickers em df_previsoes              : 302
-  Com erro (M2)                        : 72
-  Na comparacao final                  : 260
-  Obs. OOS usadas / descartadas        : 25405 / 1375
+  Com erro (M2)                        : 63
+  Na comparacao final                  : 266
+  Obs. OOS usadas / descartadas        : 26093 / 1305
 
   QLIKE medio:
-    M0_RW          : 39.150810
-    M1_GARCH       : 3.204792
-    M2_GARCHX      : 8.818930
+    M0_RW          : 43.316547
+    M1_GARCH       : 3.126321
+    M2_GARCHX      : 8.632814
 
   MCS (alpha=10%):
                 p_valor  no_conjunto
     Model name                      
     M1_GARCH      1.000         True
-    M2_GARCHX     0.092        False
-    M0_RW         0.039        False
+    M2_GARCHX     0.081        False
+    M0_RW         0.029        False
 
   Conjunto de confianca : ['M1_GARCH']
   Excluidos             : ['M0_RW', 'M2_GARCHX']
 
   gamma significativo em >=50% das janelas:
-    101/260 tickers
+    99/266 tickers
 
   Top 5 por % de janelas significativas (gamma):
 ticker_b3
-KLBN3    100.000000
 PATI4    100.000000
 RCSL4     99.029126
-PCAR3     99.029126
-CASH3     98.058252
+CASH3     99.029126
+PMAM3     94.174757
+AHEB3     94.174757
 
 ════════════════════════════════════════════════════════════
   1.b. Considerando todos os ativo, filtrando erro hessiana
 ════════════════════════════════════════════════════════════
   Tickers em df_previsoes              : 302
-  Com erro (M2)                        : 72
-  Na comparacao final                  : 230
-  Obs. OOS usadas / descartadas        : 23105 / 585
+  Com erro (M2)                        : 63
+  Na comparacao final                  : 239
+  Obs. OOS usadas / descartadas        : 23961 / 656
 
   QLIKE medio:
-    M0_RW          : 37.439391
-    M1_GARCH       : 0.894397
-    M2_GARCHX      : 1.010516
+    M0_RW          : 42.065436
+    M1_GARCH       : 3.211875
+    M2_GARCHX      : 9.220471
 
   MCS (alpha=10%):
                 p_valor  no_conjunto
     Model name                      
     M1_GARCH      1.000         True
-    M0_RW         0.021        False
-    M2_GARCHX     0.003        False
+    M2_GARCHX     0.084        False
+    M0_RW         0.037        False
 
   Conjunto de confianca : ['M1_GARCH']
   Excluidos             : ['M0_RW', 'M2_GARCHX']
 
   gamma significativo em >=50% das janelas:
-    90/230 tickers
+    90/239 tickers
 
   Top 5 por % de janelas significativas (gamma):
 ticker_b3
-KLBN3    100.000000
-PCAR3     99.029126
-RCSL4     99.029126
-CASH3     98.058252
-PMAM3     95.145631
+CASH3    99.029126
+RCSL4    99.029126
+AHEB3    94.174757
+PMAM3    94.174757
+VIVR3    93.203883
 
 ════════════════════════════════════════════════════════════
   2. Filtro >=70%
 ════════════════════════════════════════════════════════════
   Tickers em df_previsoes              : 302
-  Com erro (M2)                        : 72
-  Apos filtro zeros >=70%              : 174  (1 com erro)
-  Na comparacao final                  : 173
-  Obs. OOS usadas / descartadas        : 17807 / 12
+  Com erro (M2)                        : 63
+  Apos filtro zeros >=70%              : 182  (1 com erro)
+  Na comparacao final                  : 181
+  Obs. OOS usadas / descartadas        : 18626 / 17
 
   QLIKE medio:
-    M0_RW          : 1.737756
-    M1_GARCH       : 0.758126
-    M2_GARCHX      : 0.848682
+    M0_RW          : 1.800234
+    M1_GARCH       : 0.758588
+    M2_GARCHX      : 0.858598
 
   MCS (alpha=10%):
                 p_valor  no_conjunto
     Model name                      
-    M1_GARCH      1.000         True
-    M2_GARCHX     0.003        False
-    M0_RW         0.000        False
+    M1_GARCH        1.0         True
+    M0_RW           0.0        False
+    M2_GARCHX       0.0        False
 
   Conjunto de confianca : ['M1_GARCH']
   Excluidos             : ['M0_RW', 'M2_GARCHX']
 
   gamma significativo em >=50% das janelas:
-    66/173 tickers
+    65/181 tickers
 
   Top 5 por % de janelas significativas (gamma):
 ticker_b3
-KLBN3    100.000000
-PCAR3     99.029126
-RCSL4     99.029126
-CASH3     98.058252
-PMAM3     95.145631
+CASH3    99.029126
+RCSL4    99.029126
+PMAM3    94.174757
+VIVR3    93.203883
+TAEE3    92.233010
 
 ════════════════════════════════════════════════════════════
   3. Filtro >=50%
 ════════════════════════════════════════════════════════════
   Tickers em df_previsoes              : 302
-  Com erro (M2)                        : 72
-  Apos filtro zeros >=50%              : 156  (0 com erro)
-  Na comparacao final                  : 156
-  Obs. OOS usadas / descartadas        : 16056 / 12
+  Com erro (M2)                        : 63
+  Apos filtro zeros >=50%              : 165  (0 com erro)
+  Na comparacao final                  : 165
+  Obs. OOS usadas / descartadas        : 16978 / 17
 
   QLIKE medio:
-    M0_RW          : 1.714121
-    M1_GARCH       : 0.759670
-    M2_GARCHX      : 0.829446
+    M0_RW          : 1.790816
+    M1_GARCH       : 0.760752
+    M2_GARCHX      : 0.839866
 
   MCS (alpha=10%):
                 p_valor  no_conjunto
     Model name                      
-    M1_GARCH      1.000         True
-    M2_GARCHX     0.006        False
-    M0_RW         0.000        False
+    M1_GARCH        1.0         True
+    M0_RW           0.0        False
+    M2_GARCHX       0.0        False
 
   Conjunto de confianca : ['M1_GARCH']
   Excluidos             : ['M0_RW', 'M2_GARCHX']
 
   gamma significativo em >=50% das janelas:
-    60/156 tickers
+    61/165 tickers
 
   Top 5 por % de janelas significativas (gamma):
 ticker_b3
-KLBN3    100.000000
-PCAR3     99.029126
-RCSL4     99.029126
-CASH3     98.058252
-PMAM3     95.145631
+CASH3    99.029126
+RCSL4    99.029126
+PMAM3    94.174757
+VIVR3    93.203883
+TAEE3    92.233010
+
+================================================================
+  ESTIMATIVAS MEDIAS DOS MODELOS GARCH-FAMILY
+  (media das janelas com ajuste status='ok'; NaN = parametro ausente no modelo)
+================================================================
+             n_janelas   omega   alpha    beta  persistencia  leverage_g1  delta_SVI  pval_delta
+M3 GARCH       31104.0  2.7487  0.0692  0.8779        0.9471          NaN        NaN         NaN
+M4 GARCH-X     29658.0     NaN  0.0691  0.8830        0.9522          NaN     0.7561      0.9570
+M1 eGARCH      31086.0  1.6216  0.0390  0.5038        0.5428       0.1213        NaN         NaN
+M2 eGARCH-X    29607.0     NaN  0.0373  0.3512        0.3885       0.1341    -0.1709      0.2605
+
+================================================================
+  delta (ASVI): p-valor no GARCH-X (M4) vs eGARCH-X (M2)
+================================================================
+                            n_janelas  delta_medio  delta_mediano  pval_medio  pval_mediano  signif_5pct_%  signif_10pct_%
+GARCH-X (M4, simetrico)       29728.0       0.7615           0.00      0.9547         1.000         1.7391          2.1798
+eGARCH-X (M2, assimetrico)    29607.0      -0.2541          -0.02      0.2605         0.114        41.5037         48.4514
+
+  % de tickers com SVI signif. (5%) na MAIORIA (>=50%) das janelas:
+GARCH-X (M4)      0.3
+eGARCH-X (M2)    38.9
+
+  NOTA METODOLOGICA (leitura do p-valor do delta no M4):
+  No sGARCH-X (M4) o ASVI entra na variancia em NIVEL e o rugarch restringe
+  seu coeficiente a >=0. 93.4% das janelas ficam presas no limite
+  inferior (delta~0, p-valor~1), entao o p-valor do delta no M4 NAO e
+  comparavel diretamente ao do M2 (eGARCH-X: log-variancia, sem restricao de
+  sinal). A subida do p-valor do M2 (~0.11 mediano) para o M4 (~1.0) reflete
+  essa censura, e nao necessariamente perda de relevancia economica do ASVI.
+
