@@ -4,7 +4,7 @@ Trabalho de Conclusão de Curso em Economia.
 
 **Questão de pesquisa:** O Search Volume Index (SVI) do Google Trends melhora a previsão de volatilidade de ações listadas na B3?
 
-**Status:** pipeline completo (coleta, estimação e avaliação). 302 tickers estimados, 260 utilizados na comparação final (os demais removidos por janelas com erro de estimação no M2). O MCS (alpha = 10%) inclui apenas o M1 (eGARCH puro); o M2 (eGARCH-X com SVI log-dev) foi excluído com p-valor = 0.092 e o M0 (Random Walk) com p-valor = 0.039.
+**Status:** pipeline completo (coleta, estimação e avaliação). 300 tickers estimados; 240 na comparação final do cenário principal (demais tickers/janelas removidos por erro de estimação no eGARCH-X). Além do trio de previsão (M0 Random Walk, M1 eGARCH, M2 eGARCH-X), o pipeline agora estima também os **simétricos M3 GARCH e M4 GARCH-X**, usados apenas para comparar o p-valor do coeficiente do ASVI ($\delta$) entre a especificação simétrica e a assimétrica. No MCS (alpha = 10%) do cenário principal o conjunto de confiança é {M1, M2} — o M2 (eGARCH-X) permanece (p-valor = 0.284) e o M0 (Random Walk) é excluído (p-valor = 0.016). Sob remoção de janelas com erro de Hessiana ou filtros de zeros do SVI, o M2 sai do conjunto (p-valor ≈ 0.08).
 
 ---
 
@@ -18,27 +18,62 @@ Proxy semanal de volatilidade calculada como a soma dos quadrados dos retornos l
 $$RV_t = \sum_{d \in t} r_d^2, \quad r_d = \ln\left(\frac{P_d}{P_{d-1}}\right)$$
 
 **Search Volume Index (SVI)**
-O SVI é o índice semanal normalizado (0-100) do Google Trends para o termo de busca correspondente ao ticker, com geo=BR. O tratamento do SVI que entra como regressor externo no modelo eGARCH-X é o desvio logarítmico em relação à mediana móvel de 8 semanas passadas:
+O SVI é o índice semanal normalizado (0-100) do Google Trends para o termo de busca correspondente ao ticker, com geo=BR. A partir dele constrói-se o **desvio logarítmico** (ASVI, na linha de DA, ENGELBERG e GAO, 2011) em relação à mediana móvel de 8 semanas passadas:
 
-$$\text{SVI-log-dev}_t = \ln(1 + \text{SVI}_t) - \ln\left(1 + \underset{k \in \{t-8,\ldots,t-1\}}{\mathrm{median}}(\text{SVI}_k)\right)$$
+$$\text{svi-log-dev}_t = \ln(1 + \text{SVI}_t) - \ln\left(1 + \underset{k \in \{t-8,\ldots,t-1\}}{\mathrm{median}}(\text{SVI}_k)\right)$$
 
-O uso de $\ln(1+\cdot)$ (`log1p`) evita problemas quando SVI = 0. A série passa pelo teste de estacionariedade ADF na etapa de coleta.
+O regressor externo efetivamente usado nos modelos (M2 e M4) é a **forma exponencial** desse desvio — uma razão de atenção, sempre positiva e centrada em 1:
 
-O `svi_log_dev` é calculado conforme DA, ENGELBERG e GAO (2011).
+$$\text{svi-exp-dev}_t = \exp(\text{svi-log-dev}_t) = \frac{1 + \text{SVI}_t}{1 + \mathrm{median}_{8}(\text{SVI})}$$
+
+O uso de $\ln(1+\cdot)$ (`log1p`) evita problemas quando SVI = 0. Apenas os tickers cujo `svi_exp_dev` passa no teste de estacionariedade ADF entram na estimação.
 
 ---
 
 ### Modelos Competidores
 
+**Trio de previsão** (entram no MCS):
+
 | # | Modelo | Equação da variância condicional |
 |---|--------|----------------------------------|
 | M0 | Random Walk | $\hat{\sigma}^2_t = RV_{t-1}$ |
 | M1 | eGARCH(1,1) | $\ln\sigma^2_t = \omega + \alpha\,z_{t-1} + \xi\,(\lvert z_{t-1}\rvert - \mathbb{E}\lvert z_{t-1}\rvert) + \beta\,\ln\sigma^2_{t-1}$ |
-| M2 | eGARCH-X(1,1) | $\ln\sigma^2_t = \omega + \alpha\,z_{t-1} + \xi\,(\lvert z_{t-1}\rvert - \mathbb{E}\lvert z_{t-1}\rvert) + \beta\,\ln\sigma^2_{t-1} + \gamma\,\text{SVI-log-dev}_{t-1}$ |
+| M2 | eGARCH-X(1,1) | $\ln\sigma^2_t = \omega + \alpha\,z_{t-1} + \xi\,(\lvert z_{t-1}\rvert - \mathbb{E}\lvert z_{t-1}\rvert) + \beta\,\ln\sigma^2_{t-1} + \delta\,\text{svi-exp-dev}_{t-1}$ |
 
 onde $z_{t-1} = \varepsilon_{t-1}/\sigma_{t-1}$ são os resíduos padronizados.
 
-M0 é o benchmark ingênuo. M1 é o eGARCH de Nelson (1991), que modela o **logaritmo** da variância: garante positividade sem restrições nos parâmetros e captura o efeito alavancagem (assimetria entre choques positivos e negativos) pelo coeficiente $\alpha$, enquanto $\xi$ mede o efeito de magnitude e $\beta$ a persistência. M2 estende M1 com o SVI log-dev como regressor externo na equação de log-variância; o coeficiente $\gamma$ indica se o interesse de busca antecipa volatilidade futura.
+M0 é o benchmark ingênuo. M1 é o eGARCH de Nelson (1991), que modela o **logaritmo** da variância: garante positividade sem restrições nos parâmetros e captura o efeito alavancagem (assimetria entre choques positivos e negativos) pelo coeficiente $\alpha$ (termo de sinal), enquanto $\xi$ mede o efeito de magnitude (sobre $\lvert z\rvert$) e $\beta$ a persistência. M2 estende M1 com o `svi_exp_dev` como regressor externo na equação de log-variância; o coeficiente $\delta$ indica se o interesse de busca ajuda a explicar a volatilidade.
+
+---
+
+### Extensão simétrica (M3, M4) e o $\delta$ do ASVI
+
+Para investigar se o poder do SVI se confunde com o efeito de assimetria (alavancagem) que o eGARCH modela nativamente, o pipeline estima também dois modelos **simétricos** — o GARCH(1,1) de Bollerslev (M3) e sua versão com o ASVI (M4) — e compara o p-valor do coeficiente $\delta$ do ASVI entre **M4 (GARCH-X, simétrico)** e **M2 (eGARCH-X, assimétrico)**. Esses dois modelos **não** entram no MCS; servem apenas à inferência sobre $\delta$.
+
+| # | Modelo | Equação da variância condicional |
+|---|--------|----------------------------------|
+| M3 | GARCH(1,1) | $\sigma^2_t = \omega + \alpha\,\varepsilon^2_{t-1} + \beta\,\sigma^2_{t-1}$ |
+| M4 | GARCH-X(1,1) | $\sigma^2_t = \omega + \alpha\,\varepsilon^2_{t-1} + \beta\,\sigma^2_{t-1} + \delta\,\text{svi-exp-dev}_{t-1}$ |
+
+**Estimativas médias** (janelas OOS com `status = ok`):
+
+| Modelo | $\omega$ | $\alpha$ | $\beta$ | $\alpha+\beta$ | $\xi$ (magnitude) | $\delta$ (ASVI) | p-valor $\delta$ |
+|--------|---------:|---------:|--------:|---------------:|------------------:|----------------:|-----------------:|
+| M3 GARCH    | 2.780 | 0.070 | 0.877 | 0.947 | —     | —      | —     |
+| M4 GARCH-X  | —     | 0.071 | 0.876 | 0.947 | —     | 0.423  | 0.953 |
+| M1 eGARCH   | 1.624 | 0.039 | 0.505 | —     | 0.122 | —      | —     |
+| M2 eGARCH-X | —     | 0.039 | 0.365 | —     | 0.138 | −0.264 | 0.267 |
+
+> No eGARCH (M1/M2), $\alpha$ é o coeficiente do termo de **sinal** (efeito alavancagem, sobre $z_{t-1}$) e $\xi$ o do termo de **magnitude** (sobre $\lvert z_{t-1}\rvert$); a persistência é $\beta$. No GARCH simétrico (M3/M4), $\alpha$ é o coeficiente **ARCH** (sobre $\varepsilon^2$) e a persistência é $\alpha+\beta$.
+
+**Comparação do $\delta$ (ASVI)** — *pooled* sobre todas as janelas OOS (`data/delta_svi_garchx_vs_egarchx.csv`):
+
+| Especificação | $\delta$ médio | $\delta$ mediano | p-valor médio | p-valor mediano | % janelas signif. (5%) |
+|---------------|---------------:|-----------------:|--------------:|----------------:|-----------------------:|
+| GARCH-X (M4, simétrico)    | 0.423  | ≈ 0    | 0.953 | ≈ 1.000 | 1.5%  |
+| eGARCH-X (M2, assimétrico) | −0.284 | −0.012 | 0.272 | 0.103   | 43.1% |
+
+> **Nota metodológica — o p-valor do M4 não é comparável ao do M2.** No GARCH-X (variância em **nível**), a positividade da variância impõe uma restrição de não-negatividade sobre $\delta$; como o `svi_exp_dev` é sempre positivo e centrado em 1 (colinear com $\omega$), o $\delta$ do M4 empilha na fronteira (mediana ≈ 0, p-valor ≈ 1) na maioria dos tickers. Assim, a comparação direta dos p-valores **não constitui um teste limpo** da hipótese de redundância — e, nos números brutos, o $\delta$ é *mais* (não menos) significativo no eGARCH-X. A evidência robusta de que o SVI é redundante com a memória de volatilidade do eGARCH vem de outra via — co-movimento contemporâneo, precedência da volatilidade passada sobre a atenção e queda de ~97% do coeficiente preditivo do SVI ao controlar pela RV defasada —, documentada em `03_analise_resultados.ipynb`.
 
 ---
 
@@ -55,7 +90,7 @@ Os modelos são estimados e avaliados **fora da amostra** (*out-of-sample*) por 
 
 Isso evita *look-ahead bias*, reproduz o ambiente real de previsão e garante comparabilidade justa entre modelos e entre ativos.
 
-A estimação eGARCH/eGARCH-X é feita em R (`rugarch`) via `02_modelos.R`.
+A estimação dos quatro modelos GARCH-family (GARCH, GARCH-X, eGARCH, eGARCH-X) é feita em R (`rugarch`) via `02_modelos.R`.
 
 ---
 
@@ -85,11 +120,11 @@ O repositório avalia **três estratégias de filtro** comparativamente (diagnó
 
 | Estratégia | Descrição | Tickers na comparação final |
 |------------|-----------|-----------------------------|
-| Sem filtro de zeros | Não remove nenhum ticker | 260 |
-| Zeros >= 70% | Remove tickers com 70% ou mais das semanas com SVI = 0, além dos com erro | 173 |
-| Zeros >= 50% | Remove tickers com 50% ou mais das semanas com SVI = 0, além dos com erro | 156 |
+| Sem filtro de zeros | Não remove nenhum ticker | 240 |
+| Zeros >= 70% | Remove tickers com 70% ou mais das semanas com SVI = 0, além dos com erro | 162 |
+| Zeros >= 50% | Remove tickers com 50% ou mais das semanas com SVI = 0, além dos com erro | 147 |
 
-A análise principal usa a estratégia **sem filtro de zeros** (apenas remoção das janelas com erro de estimação no M2), totalizando 260 tickers e 25.405 observações *out-of-sample*. O M1 (eGARCH puro) é o único modelo no MCS em **todas** as estratégias.
+A análise principal usa a estratégia **sem filtro de zeros** (apenas remoção das janelas com erro de estimação no eGARCH-X), totalizando 240 tickers e 23.443 observações *out-of-sample*. O M1 (eGARCH puro) está no MCS em **todas** as estratégias; o M2 (eGARCH-X) só permanece no conjunto no cenário sem filtro (sai sob remoção de janelas com erro de Hessiana ou sob os filtros de zeros).
 
 ---
 
@@ -97,13 +132,13 @@ A análise principal usa a estratégia **sem filtro de zeros** (apenas remoção
 
 | Modelo | QLIKE médio | QLIKE mediano | Melhor em N tickers | MCS (p-valor) |
 |--------|-------------|---------------|---------------------|---------------|
-| M0_RW | 39.151 | 1.655 | 9 | 0.039 (fora) |
-| M1_GARCH | 3.205 | 0.691 | 182 | 1.000 (dentro) |
-| M2_GARCHX | 8.819 | 0.768 | 69 | 0.092 (fora) |
+| M0_RW | 66.765 | 1.677 | 5 | 0.016 (fora) |
+| M1_GARCH | 14.527 | 0.703 | 165 | 1.000 (dentro) |
+| M2_GARCHX | 11.447 | 0.767 | 70 | 0.284 (dentro) |
 
-> O QLIKE médio (agrupado sobre as 25.405 observações *out-of-sample*) é fortemente influenciado por alguns tickers com perdas extremas; a mediana por ticker — M1 (0.691) < M2 (0.768) < M0 (1.655) — confirma de forma robusta a vantagem do M1.
+> Médias e medianas das médias de QLIKE por ticker (240 tickers, `data/qlike_por_ticker.csv`). O QLIKE **médio** é fortemente influenciado por alguns tickers com perdas extremas (por isso a média do M2 fica abaixo da do M1); a **mediana** por ticker — M1 (0.703) < M2 (0.767) < M0 (1.677) — e a contagem de vitórias por ticker confirmam de forma robusta a vantagem do M1.
 
-O M1 (eGARCH puro) domina no agregado e é o único modelo no MCS (alpha = 10%). Apesar disso, o M2 vence individualmente em 69 dos 260 tickers, e o coeficiente $\gamma$ do SVI é significativo (5%) em pelo menos metade das janelas para 101 dos 260 tickers — sugerindo que o SVI tem poder preditivo em um subconjunto de ativos, ainda que insuficiente para superar o M1 no conjunto. Os diagnósticos de resíduos padronizados (Ljung-Box em $z_t$ e $z_t^2$, Jarque-Bera) estão em `data/diagnosticos_residuos.csv`.
+O M1 (eGARCH puro) domina o ticker típico (melhor em 165 dos 240) e ancora o MCS (p-valor = 1.000). O M2 (eGARCH-X) permanece no conjunto de confiança no cenário principal (p-valor = 0.284), mas vence individualmente em apenas 70 dos 240 tickers e não supera o M1 — a inclusão do SVI não gera ganho preditivo robusto. O coeficiente $\delta$ do SVI é significativo (5%) em pelo menos metade das janelas para 98 dos 240 tickers, concentrando-se nos ativos mais voláteis. Os diagnósticos de resíduos padronizados (Ljung-Box em $z_t$ e $z_t^2$, Jarque-Bera) estão em `data/diagnosticos_residuos.csv`.
 
 ---
 
@@ -112,25 +147,27 @@ O M1 (eGARCH puro) domina no agregado e é o único modelo no MCS (alpha = 10%).
 ```
 .
 ├── 01_coleta_dados.ipynb        # Coleta e preparo dos dados
-├── 02_modelos.R                 # Estimação M0-M2 (rugarch), painel alinhado
+├── 02_modelos.R                 # Estimação M0-M4 (rugarch), painel alinhado
 ├── 03_analise_resultados.ipynb  # QLIKE, MCS, diagnósticos e análise exploratória
 ├── requirements.txt
 └── data/
-    ├── acoes-listadas-b3.csv        # Lista de tickers da B3
-    ├── acoes_elegiveis.csv          # Tickers que passaram nos filtros de liquidez/histórico
-    ├── precos_semanais.csv          # Preços e volatilidade realizada semanal por ticker
-    ├── google_trends_svi.csv        # SVI semanal por ticker (Google Trends)
-    ├── log_coleta_svi.csv           # Log da coleta do Google Trends
-    ├── log_adf_svi.csv              # Resultados do teste ADF por ticker
-    ├── base_final_tcc.csv           # Base combinada (preços + SVI + tratamentos)
-    ├── previsoes_consolidadas.csv   # Previsões OOS M0-M2 (mesmas semanas por ticker)
-    ├── resumo_parametros.csv        # Parâmetros médios por ticker (omega, alpha, beta, gamma)
-    ├── apendice_resumo_params.csv   # Resumo arredondado para apêndice
-    ├── qlike_por_ticker.csv         # QLIKE médio por ticker e modelo (260 tickers)
-    ├── mcs_resultado.csv            # Resultado do Model Confidence Set (3 modelos)
-    ├── diagnosticos_residuos.csv    # Ljung-Box, Jarque-Bera dos resíduos padronizados
-    ├── residuos_padronizados.csv    # Série de resíduos padronizados por ticker/modelo
-    └── diagnostico_filtros.txt      # Comparação das estratégias de filtro de zeros
+    ├── acoes-listadas-b3.csv           # Lista de tickers da B3
+    ├── acoes_elegiveis.csv             # Tickers que passaram nos filtros de liquidez/histórico
+    ├── precos_semanais.csv             # Preços e volatilidade realizada semanal por ticker
+    ├── google_trends_svi.csv           # SVI semanal por ticker (Google Trends)
+    ├── log_coleta_svi.csv              # Log da coleta do Google Trends
+    ├── log_adf_svi.csv                 # Resultados do teste ADF por ticker
+    ├── base_final_tcc.csv              # Base combinada (preços + SVI + tratamentos)
+    ├── previsoes_consolidadas.csv      # Previsões OOS M0-M4 + coeficientes por janela
+    ├── resumo_parametros.csv           # Parâmetros médios por ticker (M1-M4: alpha, beta, delta, leverage)
+    ├── apendice_resumo_params.csv      # Resumo arredondado para apêndice
+    ├── qlike_por_ticker.csv            # QLIKE médio por ticker e modelo (240 tickers)
+    ├── mcs_resultado.csv               # Resultado do Model Confidence Set (M0, M1, M2)
+    ├── delta_svi_garchx_vs_egarchx.csv # p-valor do delta (ASVI): GARCH-X (M4) vs eGARCH-X (M2)
+    ├── diagnosticos_residuos.csv       # Ljung-Box, Jarque-Bera dos resíduos padronizados
+    ├── residuos_padronizados.csv       # Série de resíduos padronizados por ticker/modelo
+    ├── diagnostico_filtros.txt         # Comparação das estratégias de filtro + estimativas M1-M4
+    └── checkpoints_v2/                 # 1 .rds por ticker (retomada incremental, 4 modelos)
 ```
 
 ---
@@ -164,7 +201,7 @@ Rscript 02_modelos.R
 
 | Etapa | Arquivo | O que faz | Tempo estimado |
 |-------|---------|-----------|----------------|
-| 2 | `02_modelos.R` | Pré-voo do painel; estima M0-M2 em janela móvel; salva previsões, parâmetros e diagnósticos | ~30-60min (paralelo) |
+| 2 | `02_modelos.R` | Pré-voo do painel; estima M0-M4 em janela móvel; salva previsões, parâmetros e diagnósticos | ~30-60min (paralelo) |
 
 Pacotes R necessários: `rugarch`, `dplyr`, `tidyr`, `readr`, `lubridate`, `tseries`.
 
@@ -205,7 +242,7 @@ tqdm
 **R** (`02_modelos.R`):
 
 ```
-rugarch       # estimação eGARCH(1,1) e eGARCH-X(1,1)
+rugarch       # estimação GARCH/GARCH-X e eGARCH/eGARCH-X (1,1)
 dplyr
 tidyr
 readr
